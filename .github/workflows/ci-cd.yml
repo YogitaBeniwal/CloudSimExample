@@ -30,7 +30,7 @@ jobs:
       run: mvn clean install && mvn clean package
 
     - name: Run Simulation
-      run: mvn exec:java -pl modules/cloudsim-examples/ -Dexec.mainClass=org.cloudbus.cloudsim.examples.EnhancedMultiTierCloudSimulation
+      run: mvn exec:java -pl modules/cloudsim-examples/ -Dexec.mainClass=org.cloudbus.cloudsim.examples.CloudSimPlusExample
 
     - name: Upload Chart Image (cloudlet_execution_results.png)
       if: success()
