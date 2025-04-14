@@ -53,3 +53,6 @@ jobs:
           echo "results<<EOF" >> $GITHUB_OUTPUT
           echo "$CLEAN_RESULTS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+      - name: Use Processed Results
+        run: echo "${{ steps.process_results.outputs.results }}"
+          
