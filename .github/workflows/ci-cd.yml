@@ -2,26 +2,27 @@ name: CI/CD Pipeline for CloudSim Simulation
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build-and-simulate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # Updated to v4
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4 # Updated to v4
         with:
-          java-version: '21'
-          distribution: 'temurin'
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
 
       - name: Create output directory
         run: |
-          mkdir -p $GITHUB_WORKSPACE/output
+          mkdir -p ./output
           echo "Output directory created"
 
       - name: Build and Install All Modules
@@ -32,27 +33,57 @@ jobs:
       - name: Run Simulation and Capture Results
         id: simulation
         run: |
-          # Run simulation and save output
-          mvn exec:java -pl modules/cloudsim-examples -Dexec.mainClass=org.cloudbus.cloudsim.examples.CloudSimPlusExample > $GITHUB_WORKSPACE/output/simulation_results.txt 2>&1
-          
-          # Check if simulation succeeded
-          if [ $? -ne 0 ]; then
-            echo "::error::Simulation failed!"
+          # Enable debug logging
+          export CLOUDSIM_LOGLEVEL=DEBUG
+
+          # Run simulation with full output
+          echo "Starting simulation..."
+          mvn exec:java -pl modules/cloudsim-examples \
+            -Dexec.mainClass=org.cloudbus.cloudsim.examples.EnergyAwareCloudSimExample \
+            > ./output/simulation_results.txt 2>&1 || SIM_EXIT_CODE=$?
+
+          # Check if simulation failed
+          if [ -n "${SIM_EXIT_CODE}" ]; then
+            echo "::error::Simulation failed with exit code ${SIM_EXIT_CODE}"
+            echo "===== ERROR OUTPUT ====="
+            cat ./output/simulation_results.txt
             exit 1
           fi
 
-          # Extract just the important results
-          FINAL_RESULTS=$(grep -A 100 "========== FINAL RESULTS ==========" $GITHUB_WORKSPACE/output/simulation_results.txt)
-          POWER_RESULTS=$(grep -A 10 "Total Energy Consumption" $GITHUB_WORKSPACE/output/simulation_results.txt | head -n 4)
-          
-          # Combine and format results
-          COMBINED_RESULTS="$FINAL_RESULTS\n\n$POWER_RESULTS"
-          CLEAN_RESULTS=$(echo "$COMBINED_RESULTS" | sed '/Downloading from/d' | sed '/Progress/d' | sed '/Downloaded/d')
-          
-          # Output for Slack
-          echo "results<<EOF" >> $GITHUB_OUTPUT
-          echo "$CLEAN_RESULTS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-      - name: Use Processed Results
-        run: echo "${{ steps.process_results.outputs.results }}"
-          
+          # Verify successful completion
+          if ! grep -q "========== ENERGY-AWARE SCHEDULING RESULTS ==========" ./output/simulation_results.txt; then
+            echo "::error::Simulation completed but missing expected results"
+            echo "===== LAST 50 LINES ====="
+            tail -n 50 ./output/simulation_results.txt
+            exit 1
+          fi
+
+          # Extract and format results
+          FINAL_RESULTS=$(grep -A 50 "========== ENERGY-AWARE SCHEDULING RESULTS ==========" ./output/simulation_results.txt)
+          POWER_RESULTS=$(grep -A 10 "Total Energy:" ./output/simulation_results.txt)
+
+          # Output results summary
+          echo "===== SIMULATION RESULTS ====="
+          echo "$FINAL_RESULTS"
+          echo ""
+          echo "$POWER_RESULTS"
+
+          # Handle generated files
+          if [ -f "energy_usage.png" ]; then
+            mv energy_usage.png ./output/
+            echo "Generated chart saved to output/"
+          fi
+          if [ -f "power_data.csv" ]; then
+            mv power_data.csv ./output/
+            echo "Power data saved to output/"
+          fi
+
+      - name: Upload Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4 # Updated to v4
+        with:
+          name: simulation-results
+          path: |
+            ./output/simulation_results.txt
+            ./output/energy_usage.png
+            ./output/power_data.csv
