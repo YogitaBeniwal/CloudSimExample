@@ -1,0 +1,42 @@
+name: CI/CD Pipeline for CloudSim Simulation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-simulate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Create output directory
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/output
+          echo "Output directory created"
+
+      - name: Build and Install All Modules
+        run: |
+          mvn clean install -DskipTests
+          echo "Build completed successfully"
+
+      - name: Run Simulation and Capture Results
+        id: simulation
+        run: |
+          # Run simulation and save output
+          mvn exec:java -pl modules/cloudsim-examples -Dexec.mainClass=org.cloudbus.cloudsim.examples.CloudSimPlusExample > $GITHUB_WORKSPACE/output/simulation_results.txt 2>&1
+          
+          # Check if simulation succeeded
+          if [ $? -ne 0 ]; then
+            echo "::error::Simulation failed!"
+            exit 1
+          fi
