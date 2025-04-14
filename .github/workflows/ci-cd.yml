@@ -39,7 +39,7 @@ jobs:
           # Run simulation with full output
           echo "Starting simulation..."
           mvn exec:java -pl modules/cloudsim-examples \
-            -Dexec.mainClass=org.cloudbus.cloudsim.examples.EnergyAwareCloudSimExample \
+            -Dexec.mainClass=org.cloudbus.cloudsim.examples.CloudSimPlusExample \
             > ./output/simulation_results.txt 2>&1 || SIM_EXIT_CODE=$?
 
           # Check if simulation failed
