@@ -1,89 +1,40 @@
-name: CI/CD Pipeline for CloudSim Simulation
+name: CI/CD for CloudSim Simulation
 
 on:
   push:
-    branches: [main]
+    branches: [ "main" ]
   pull_request:
-    branches: [main]
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
-  build-and-simulate:
+  build-and-run:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4 # Updated to v4
+    - name: Checkout Repository
+      uses: actions/checkout@v3
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4 # Updated to v4
-        with:
-          java-version: "21"
-          distribution: "temurin"
-          cache: "maven"
+    - name: Set up JDK
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '21'
 
-      - name: Create output directory
-        run: |
-          mkdir -p ./output
-          echo "Output directory created"
+    - name: Set up Maven
+      uses: stCarolas/setup-maven@v4
+      with:
+        maven-version: '3.8.6'
 
-      - name: Build and Install All Modules
-        run: |
-          mvn clean install -DskipTests
-          echo "Build completed successfully"
+    - name: Build Project
+      run: mvn clean install && mvn clean package
 
-      - name: Run Simulation and Capture Results
-        id: simulation
-        run: |
-          # Enable debug logging
-          export CLOUDSIM_LOGLEVEL=DEBUG
+    - name: Run Simulation
+      run: mvn exec:java -pl modules/cloudsim-examples/ -Dexec.mainClass=org.cloudbus.cloudsim.examples.EnhancedMultiTierCloudSimulation
 
-          # Run simulation with full output
-          echo "Starting simulation..."
-          mvn exec:java -pl modules/cloudsim-examples \
-            -Dexec.mainClass=org.cloudbus.cloudsim.examples.CloudSimPlusExample \
-            > ./output/simulation_results.txt 2>&1 || SIM_EXIT_CODE=$?
-
-          # Check if simulation failed
-          if [ -n "${SIM_EXIT_CODE}" ]; then
-            echo "::error::Simulation failed with exit code ${SIM_EXIT_CODE}"
-            echo "===== ERROR OUTPUT ====="
-            cat ./output/simulation_results.txt
-            exit 1
-          fi
-
-          # Verify successful completion
-          if ! grep -q "========== ENERGY-AWARE SCHEDULING RESULTS ==========" ./output/simulation_results.txt; then
-            echo "::error::Simulation completed but missing expected results"
-            echo "===== LAST 50 LINES ====="
-            tail -n 50 ./output/simulation_results.txt
-            exit 1
-          fi
-
-          # Extract and format results
-          FINAL_RESULTS=$(grep -A 50 "========== ENERGY-AWARE SCHEDULING RESULTS ==========" ./output/simulation_results.txt)
-          POWER_RESULTS=$(grep -A 10 "Total Energy:" ./output/simulation_results.txt)
-
-          # Output results summary
-          echo "===== SIMULATION RESULTS ====="
-          echo "$FINAL_RESULTS"
-          echo ""
-          echo "$POWER_RESULTS"
-
-          # Handle generated files
-          if [ -f "energy_usage.png" ]; then
-            mv energy_usage.png ./output/
-            echo "Generated chart saved to output/"
-          fi
-          if [ -f "power_data.csv" ]; then
-            mv power_data.csv ./output/
-            echo "Power data saved to output/"
-          fi
-
-      - name: Upload Artifacts
-        if: always()
-        uses: actions/upload-artifact@v4 # Updated to v4
-        with:
-          name: simulation-results
-          path: |
-            ./output/simulation_results.txt
-            ./output/energy_usage.png
-            ./output/power_data.csv
+    - name: Upload Chart Image (cloudlet_execution_results.png)
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: execution-chart
+        path: cloudlet_execution_results.png
