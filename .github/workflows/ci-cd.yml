@@ -40,3 +40,16 @@ jobs:
             echo "::error::Simulation failed!"
             exit 1
           fi
+
+          # Extract just the important results
+          FINAL_RESULTS=$(grep -A 100 "========== FINAL RESULTS ==========" $GITHUB_WORKSPACE/output/simulation_results.txt)
+          POWER_RESULTS=$(grep -A 10 "Total Energy Consumption" $GITHUB_WORKSPACE/output/simulation_results.txt | head -n 4)
+          
+          # Combine and format results
+          COMBINED_RESULTS="$FINAL_RESULTS\n\n$POWER_RESULTS"
+          CLEAN_RESULTS=$(echo "$COMBINED_RESULTS" | sed '/Downloading from/d' | sed '/Progress/d' | sed '/Downloaded/d')
+          
+          # Output for Slack
+          echo "results<<EOF" >> $GITHUB_OUTPUT
+          echo "$CLEAN_RESULTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
